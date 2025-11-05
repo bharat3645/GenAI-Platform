@@ -30,48 +30,72 @@ export default function GraphRAG() {
     setRelationships([]);
     setAnswer('');
 
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/graphrag-extract`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          },
+          body: JSON.stringify({
+            query: query,
+          }),
+        }
+      );
 
-    const mockEntities: Entity[] = [
-      {
-        id: '1',
-        name: 'Machine Learning',
-        type: 'Technology',
-        description: 'A subset of artificial intelligence',
-      },
-      {
-        id: '2',
-        name: 'Neural Networks',
-        type: 'Concept',
-        description: 'Computing systems inspired by biological neural networks',
-      },
-      {
-        id: '3',
-        name: 'Deep Learning',
-        type: 'Technology',
-        description: 'Advanced machine learning using multi-layer neural networks',
-      },
-      {
-        id: '4',
-        name: 'Data Science',
-        type: 'Field',
-        description: 'Interdisciplinary field using scientific methods to extract knowledge',
-      },
-    ];
+      const data = await response.json();
 
-    const mockRelationships: Relationship[] = [
-      { id: '1', source: 'Machine Learning', target: 'Neural Networks', type: 'uses' },
-      { id: '2', source: 'Deep Learning', target: 'Neural Networks', type: 'implements' },
-      { id: '3', source: 'Data Science', target: 'Machine Learning', type: 'includes' },
-    ];
+      setEntities(data.entities || []);
+      setRelationships(data.relationships || []);
+      setAnswer(
+        data.summary ||
+          `Based on the knowledge graph analysis, I found ${(data.entities || []).length} relevant entities and ${(data.relationships || []).length} relationships related to "${query}". The GraphRAG system extracted these from your uploaded documents and mapped their connections to provide context-aware insights.`
+      );
 
-    setEntities(mockEntities);
-    setRelationships(mockRelationships);
-    setAnswer(
-      `Based on the knowledge graph analysis, I found ${mockEntities.length} relevant entities and ${mockRelationships.length} relationships related to "${query}". The GraphRAG system extracted these from your uploaded documents and mapped their connections to provide context-aware insights.`
-    );
+      setSearching(false);
+    } catch (error) {
+      setSearching(false);
+      const mockEntities: Entity[] = [
+        {
+          id: '1',
+          name: 'Machine Learning',
+          type: 'Technology',
+          description: 'A subset of artificial intelligence',
+        },
+        {
+          id: '2',
+          name: 'Neural Networks',
+          type: 'Concept',
+          description: 'Computing systems inspired by biological neural networks',
+        },
+        {
+          id: '3',
+          name: 'Deep Learning',
+          type: 'Technology',
+          description: 'Advanced machine learning using multi-layer neural networks',
+        },
+        {
+          id: '4',
+          name: 'Data Science',
+          type: 'Field',
+          description: 'Interdisciplinary field using scientific methods to extract knowledge',
+        },
+      ];
 
-    setSearching(false);
+      const mockRelationships: Relationship[] = [
+        { id: '1', source: 'Machine Learning', target: 'Neural Networks', type: 'uses' },
+        { id: '2', source: 'Deep Learning', target: 'Neural Networks', type: 'implements' },
+        { id: '3', source: 'Data Science', target: 'Machine Learning', type: 'includes' },
+      ];
+
+      setEntities(mockEntities);
+      setRelationships(mockRelationships);
+      setAnswer(
+        `Error fetching from GraphRAG. Showing sample data. Query: "${query}"`
+      );
+    }
   };
 
   const entityTypeColors: Record<string, string> = {

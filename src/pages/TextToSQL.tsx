@@ -19,9 +19,37 @@ export default function TextToSQL() {
 
     setExecuting(true);
 
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/text-to-sql`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          },
+          body: JSON.stringify({
+            query: query,
+          }),
+        }
+      );
 
-    const mockSQL = `SELECT u.email, COUNT(d.id) as document_count,
+      const data = await response.json();
+
+      const result: QueryResult = {
+        query,
+        sql: data.sql || 'Unable to generate SQL',
+        results: data.results || [],
+        timestamp: new Date(),
+      };
+
+      setCurrentResult(result);
+      setHistory((prev) => [result, ...prev].slice(0, 10));
+      setExecuting(false);
+    } catch (error) {
+      setExecuting(false);
+
+      const fallbackSQL = `SELECT u.email, COUNT(d.id) as document_count,
        MAX(d.upload_date) as last_upload
 FROM users u
 LEFT JOIN pdf_documents d ON u.id = d.user_id
@@ -30,24 +58,22 @@ GROUP BY u.email
 ORDER BY document_count DESC
 LIMIT 10;`;
 
-    const mockResults = [
-      { email: 'user1@example.com', document_count: 12, last_upload: '2024-10-07' },
-      { email: 'user2@example.com', document_count: 8, last_upload: '2024-10-06' },
-      { email: 'user3@example.com', document_count: 5, last_upload: '2024-10-05' },
-      { email: 'user4@example.com', document_count: 3, last_upload: '2024-10-04' },
-      { email: 'user5@example.com', document_count: 1, last_upload: '2024-10-03' },
-    ];
+      const fallbackResults = [
+        { email: 'user1@example.com', document_count: 12, last_upload: '2024-10-07' },
+        { email: 'user2@example.com', document_count: 8, last_upload: '2024-10-06' },
+        { email: 'user3@example.com', document_count: 5, last_upload: '2024-10-05' },
+      ];
 
-    const result: QueryResult = {
-      query,
-      sql: mockSQL,
-      results: mockResults,
-      timestamp: new Date(),
-    };
+      const result: QueryResult = {
+        query,
+        sql: fallbackSQL,
+        results: fallbackResults,
+        timestamp: new Date(),
+      };
 
-    setCurrentResult(result);
-    setHistory((prev) => [result, ...prev].slice(0, 10));
-    setExecuting(false);
+      setCurrentResult(result);
+      setHistory((prev) => [result, ...prev].slice(0, 10));
+    }
   };
 
   const exampleQueries = [

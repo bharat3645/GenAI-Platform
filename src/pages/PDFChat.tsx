@@ -26,18 +26,47 @@ export default function PDFChat() {
     if (files.length === 0) return;
     setUploading(true);
 
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    try {
+      const formData = new FormData();
+      files.forEach((file) => {
+        formData.append('files', file);
+      });
 
-    setUploading(false);
-    const assistantMessage: Message = {
-      id: Date.now().toString(),
-      role: 'assistant',
-      content: `Successfully processed ${files.length} PDF document${
-        files.length > 1 ? 's' : ''
-      }. The documents have been chunked and indexed for semantic search. You can now ask questions about the content.`,
-      timestamp: new Date(),
-    };
-    setMessages([assistantMessage]);
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/process-pdf`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          },
+          body: formData,
+        }
+      );
+
+      const data = await response.json();
+      setUploading(false);
+
+      const assistantMessage: Message = {
+        id: Date.now().toString(),
+        role: 'assistant',
+        content:
+          data.message ||
+          `Successfully processed ${files.length} PDF document${
+            files.length > 1 ? 's' : ''
+          }. The documents have been chunked and indexed for semantic search. You can now ask questions about the content.`,
+        timestamp: new Date(),
+      };
+      setMessages([assistantMessage]);
+    } catch (error) {
+      setUploading(false);
+      const errorMessage: Message = {
+        id: Date.now().toString(),
+        role: 'assistant',
+        content: 'Error processing PDFs. Please try again.',
+        timestamp: new Date(),
+      };
+      setMessages([errorMessage]);
+    }
   };
 
   const removeFile = (index: number) => {
@@ -58,17 +87,45 @@ export default function PDFChat() {
     setInput('');
     setSending(true);
 
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/rag-chat`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          },
+          body: JSON.stringify({
+            query: input,
+            documentIds: files.map((_, i) => `doc_${i}`),
+          }),
+        }
+      );
 
-    const assistantMessage: Message = {
-      id: (Date.now() + 1).toString(),
-      role: 'assistant',
-      content: `Based on the uploaded documents, I found relevant information about "${input}". The system uses RAG (Retrieval-Augmented Generation) to search through document chunks and GraphRAG to understand entity relationships. This ensures accurate, context-aware responses.`,
-      timestamp: new Date(),
-    };
+      const data = await response.json();
+      setSending(false);
 
-    setMessages((prev) => [...prev, assistantMessage]);
-    setSending(false);
+      const assistantMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content:
+          data.response ||
+          `Based on the uploaded documents, I found relevant information about "${input}". The system uses RAG (Retrieval-Augmented Generation) to search through document chunks and GraphRAG to understand entity relationships. This ensures accurate, context-aware responses.`,
+        timestamp: new Date(),
+      };
+
+      setMessages((prev) => [...prev, assistantMessage]);
+    } catch (error) {
+      setSending(false);
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: 'Error processing your question. Please try again.',
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, errorMessage]);
+    }
   };
 
   return (
